@@ -1,0 +1,47 @@
+:root{color-scheme:dark}
+body{background:radial-gradient(ellipse at 15% 0%,#28213e,transparent 58%),#111017 !important}
+#studio{max-width:1120px;width:calc(100% - 48px);height:calc(100dvh - 48px);max-height:900px;flex:none;margin:auto;border:1px solid #3a3447;border-radius:24px;background:#18161f;box-shadow:0 26px 90px #08070dbb}
+#studio header{padding:20px 24px 14px;gap:16px;background:#201c29;border-color:#373142}
+.studio-brand{font-family:'Space Grotesk',Inter,sans-serif;font-weight:700;font-size:clamp(16px,3vw,26px);letter-spacing:-.04em}
+.studio-mark{display:flex;align-items:center;justify-content:center;gap:3px;width:40px;height:40px;border-radius:12px;background:#c5fb72;color:#1a2014;flex:none}
+.studio-mark b{width:3px;height:45%;border-radius:4px;background:currentColor}
+.studio-mark b:nth-child(2),.studio-mark b:nth-child(4){height:66%}
+.studio-mark b:nth-child(3){height:29%}
+#transport{justify-content:flex-start;gap:20px;background:#15131c;border-color:#3a3447;padding:8px 12px}
+#btn-play,#btn-start-audio{background:#c5fb72;color:#182113}
+#btn-rec-wav{margin-left:auto;min-height:36px}
+#preset-select{min-height:36px}
+#studio main section{padding:20px 24px;gap:16px}
+#tab-pads>div:first-child{padding:14px;background-color:#1e1b28;border-color:#373142}
+#waveform-canvas{background:#121218}
+#tab-pads .grid-rows-2{min-height:220px;gap:12px}
+.pad-btn{--pad:#c5fb72;background:linear-gradient(145deg,#303824,#24291e 75%);border:1px solid #4e5d3b;box-shadow:inset 0 -4px 0 #11140e55;padding:14px;isolation:isolate}
+.pad-btn:nth-child(n+5){--pad:#d5b6ff;background:linear-gradient(145deg,#3c2e4b,#2a2235 75%);border-color:#604879}
+.pad-btn span:nth-child(2){font-family:'Space Grotesk',Inter,sans-serif;font-size:clamp(14px,2.4vw,24px);color:var(--pad)}
+.pad-btn span:last-child{color:#c3bbca;background:#11101878;padding:3px 6px;border-radius:5px}
+.pad-btn:hover,.pad-btn.pad-active{border-color:var(--pad)}
+.pad-btn.pad-active{box-shadow:inset 0 0 36px color-mix(in srgb,var(--pad) 24%,transparent)}
+#studio nav{padding:8px 24px 12px;gap:8px;background:#201c29;border-color:#373142}
+#studio nav button{font-size:12px;flex-direction:row;gap:8px;min-height:44px}
+#studio nav button.text-synth-cyan{color:#c5fb72;background:#c5fb7217}
+#studio nav button.text-slate-500{color:#aaa1b7}
+#start-overlay{background:radial-gradient(ellipse at 50% 25%,#302743e8,transparent 65%),#100e17df}
+#welcome{max-width:440px;padding:36px;background:#211c2d;border-color:#514460}
+#welcome h1{font-family:'Space Grotesk',Inter,sans-serif;font-size:clamp(28px,6vw,42px);line-height:1.04;letter-spacing:-.055em}
+#welcome p{color:#c2b8ce;font-size:14px}
+#welcome .studio-mark{width:66px;height:66px;margin-bottom:24px;border-radius:20px;gap:5px}
+#welcome .studio-mark b{width:5px}
+:focus-visible{outline:2px solid #c5fb72;outline-offset:3px}
+@media(min-width:760px){#waveform-canvas{min-height:124px}#tab-pads>div:first-child>div:nth-child(2){height:124px}}
+@media(max-width:600px){
+ #studio{width:100%;height:100dvh;max-height:none;border-radius:0;border:0}
+ #studio header,#studio main section{padding:12px}
+ #studio nav{padding:6px 12px max(8px,env(safe-area-inset-bottom))}
+ #studio header>div:first-child{flex-wrap:wrap}
+ #transport{justify-content:space-between;gap:4px;padding:6px}
+ #btn-rec-wav{margin-left:0}
+ #slider-master-vol{width:42px}
+ .studio-mark{width:32px;height:32px}
+ .pad-btn{padding:8px}
+ #tab-pads .grid-rows-2{gap:7px}
+}

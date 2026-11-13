@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="tr" class="h-full bg-slate-950 text-slate-100 select-none">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ses Örnekleme & Ritim Atölyesi</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Inter & JetBrains Mono for Hardware Synth Aesthetic -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        synth: {
+                            base: '#0f141c',
+                            panel: '#18202c',
+                            border: '#2a3648',
+                            amber: '#ffb020',
+                            cyan: '#00f0ff',
+                            rose: '#ff2e63',
+                            green: '#00e676',
+                            purple: '#9d4edd'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Touch and viewport optimization for mobile studio performance */
+        body, html {
+            height: 100%;
+            overflow: hidden;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        /* Custom tactile pad & hardware button effects */
+        .pad-btn {
+            transition: transform 0.05s ease, box-shadow 0.05s ease, background-color 0.1s ease;
+            box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.1), 0 4px 6px rgba(0, 0, 0, 0.4);
+        }
+        .pad-btn:active, .pad-active {
+            transform: scale(0.96) translateY(2px);
+            box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.6), 0 0 15px currentColor;
+        }
+        
+        /* Custom scrollbar for sequencer track rows if needed */
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2a3648;
+            border-radius: 4px;
+        }
+        
+        /* Hardware LCD screen grid background */
+        .lcd-bg {
+            background-image: linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
+            background-size: 16px 16px;
+        }
+
+        /* Pulsing indicator animation */
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.95); }
+        }
+        .animate-pulse-glow {
+            animation: pulse-glow 1.5s infinite ease-in-out;
+        }
+    </style>
+    <meta name="description" content="Ses örnekle, sekiz pad ile çal ve 16 adımlı ritimler oluştur.">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="studio.css">
+</head>
+<body class="h-full flex flex-col font-sans bg-slate-950 text-slate-100 antialiased overflow-hidden">
+
+    <!-- AUDIO CONTEXT UNLOCK OVERLAY (Mandatory for mobile browsers) -->
+    <div id="start-overlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/95 backdrop-blur-md p-6 text-center">
+        <div id="welcome" class="max-w-xs w-full bg-slate-900 border border-slate-700 rounded-3xl p-6 shadow-2xl flex flex-col items-center">
+            <span class="studio-mark" aria-hidden="true"><b></b><b></b><b></b><b></b><b></b></span>
+            <h1 class="font-extrabold text-white mb-4">Ses ve Ritim Atölyesi</h1>
+            <p class="mb-6 leading-relaxed">Sesleri örnekle, pad’lerle çal ve kendi ritmini oluştur.</p>
+            <button id="btn-start-audio" class="w-full py-4 px-6 bg-gradient-to-r from-synth-cyan to-blue-600 text-slate-950 font-black tracking-wider text-sm rounded-xl shadow-lg shadow-synth-cyan/20 active:scale-95 transition-transform flex items-center justify-center gap-2">
+                <i class="fa-solid fa-power-off text-base"></i> ATÖLYEYİ BAŞLAT
+            </button>
+        </div>
+    </div>
+
+    <!-- MAIN APP CONTAINER -->
+    <div id="studio" class="flex-1 flex flex-col h-full max-w-md mx-auto w-full border-x border-slate-800 bg-synth-base relative overflow-hidden">
+        
+        <!-- TOP TRANSPORT BAR (Persistent across tabs) -->
+        <header class="bg-slate-900 border-b border-slate-800 p-2.5 flex flex-col gap-2 shrink-0 shadow-md">
+            <!-- Row 1: Brand, Audio Kit Selector & Mic / File Action Buttons -->
+            <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                    <span class="studio-mark" aria-hidden="true"><b></b><b></b><b></b><b></b><b></b></span>
+                    <span class="studio-brand">Ses ve Ritim Atölyesi</span>
+                </div>
+                
+                <div class="flex items-center gap-1.5">
+                    <!-- Kit Selector -->
+                    <select id="preset-select" aria-label="Ses kiti" class="bg-slate-950 text-slate-200 border border-slate-700 rounded-lg text-xs font-mono px-2 py-1 focus:outline-none focus:border-synth-cyan">
+                        <option value="anadolu">Anadolu Elektro</option>
+                        <option value="lofi">Lo-Fi Gece</option>
+                        <option value="trap808">808 Trap</option>
+                        <option value="synth80s">80s Retro Synth</option>
+                    </select>
+
+                    <!-- Mic Record Button -->
+                    <button id="btn-mic-record" title="Mikrofon ile Örnekle" class="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-synth-rose active:scale-90 flex items-center justify-center text-xs transition">
+                        <i class="fa-solid fa-microphone"></i>
+                    </button>
+
+                    <!-- Audio File Upload -->
+                    <label title="Ses Dosyası Yükle" class="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-synth-cyan active:scale-90 flex items-center justify-center text-xs cursor-pointer transition">
+                        <i class="fa-solid fa-file-audio"></i>
+                        <input type="file" id="file-input" aria-label="Ses dosyası yükle" accept="audio/*" class="hidden">
+                    </label>
+                </div>
+            </div>
+
+            <!-- Row 2: Playback, BPM, Master Vol & WAV Recorder -->
+            <div id="transport" class="flex items-center justify-between gap-2 bg-slate-950 p-2 rounded-xl border border-slate-800">
+                <!-- Play / Pause Sequencer Button -->
+                <button id="btn-play" aria-label="Ritmi başlat veya durdur" class="w-10 h-10 rounded-lg bg-synth-cyan text-slate-950 font-bold flex items-center justify-center shadow-md active:scale-95 transition">
+                    <i id="play-icon" class="fa-solid fa-play text-sm"></i>
+                </button>
+
+                <!-- BPM Counter & Controls -->
+                <div class="flex items-center gap-1 bg-slate-900 px-2 py-1 rounded-lg border border-slate-800">
+                    <button id="btn-bpm-minus" aria-label="Tempoyu azalt" class="w-6 h-6 text-slate-400 active:text-white font-mono font-bold">-</button>
+                    <div class="flex flex-col items-center px-1">
+                        <span class="text-[9px] text-slate-500 font-mono tracking-tighter">BPM</span>
+                        <span id="bpm-val" class="font-mono text-xs font-bold text-synth-amber">120</span>
+                    </div>
+                    <button id="btn-bpm-plus" aria-label="Tempoyu artır" class="w-6 h-6 text-slate-400 active:text-white font-mono font-bold">+</button>
+                </div>
+
+                <!-- Master Vol Slider -->
+                <div class="flex items-center gap-1.5 px-1">
+                    <i class="fa-solid fa-volume-high text-slate-500 text-xs"></i>
+                    <input type="range" id="slider-master-vol" aria-label="Ana ses seviyesi" min="0" max="1" step="0.05" value="0.8" class="w-16 accent-synth-cyan h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+                </div>
+
+                <!-- Live Performance Recorder (WAV Download) -->
+                <button id="btn-rec-wav" class="px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs font-mono font-bold text-slate-300 hover:text-synth-rose active:scale-95 flex items-center gap-1 transition">
+                    <span id="rec-dot" class="w-2 h-2 rounded-full bg-slate-500"></span>
+                    <span id="rec-text">KAYIT</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- MAIN TAB SCREEN PANELS -->
+        <main class="flex-1 overflow-hidden relative flex flex-col">
+
+            <!-- TAB 1: PADS (SAMPLER) -->
+            <section id="tab-pads" class="flex-1 flex flex-col p-3 gap-3 overflow-y-auto">
+                <!-- Waveform Canvas Display -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-2.5 flex flex-col gap-1 shadow-inner relative lcd-bg">
+                    <div class="flex items-center justify-between text-[10px] font-mono text-slate-400 px-1">
+                        <span class="flex items-center gap-1"><i class="fa-solid fa-wave-square text-synth-cyan"></i> ÖRNEK DALGA FORMU</span>
+                        <span id="sample-info" class="text-synth-amber font-bold">ANADOLU ELEKTRO (8 DİLİM)</span>
+                    </div>
+                    
+                    <div class="relative h-20 w-full bg-slate-950 rounded-lg overflow-hidden border border-slate-800/80">
+                        <canvas id="waveform-canvas" class="w-full h-full block"></canvas>
+                        <!-- Recording Status Text -->
+                        <div id="mic-status" class="hidden absolute inset-0 bg-slate-950/90 flex items-center justify-center text-xs font-mono text-synth-rose gap-2">
+                            <span class="w-3 h-3 rounded-full bg-synth-rose animate-ping"></span> MİKROFON DİNLENİYOR... (3 SANİYE)
+                        </div>
+                    </div>
+
+                    <!-- Selected Pad Control Bar -->
+                    <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/60 mt-1">
+                        <!-- Pitch Shift Control -->
+                        <div class="flex items-center justify-between bg-slate-950 px-2 py-1 rounded-lg border border-slate-800">
+                            <span class="text-[10px] font-mono text-slate-400">PITCH: <span id="pitch-val" class="text-synth-cyan">0</span>st</span>
+                            <input type="range" id="slider-pitch" aria-label="Ses perdesi" min="-12" max="12" step="1" value="0" class="w-20 accent-synth-cyan h-1 bg-slate-800">
+                        </div>
+
+                        <!-- Reverse Toggle -->
+                        <button id="btn-reverse" class="flex items-center justify-center gap-1.5 bg-slate-950 px-2 py-1 rounded-lg border border-slate-800 text-[10px] font-mono text-slate-400 active:border-synth-amber transition">
+                            <i class="fa-solid fa-[#fa-arrow-rotate-left] fa-arrow-rotate-left text-xs"></i> TERS ÇAL: <span id="rev-status" class="text-slate-500 font-bold">KAPALI</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 8-Pad Ergonomic Touch Grid (2x4) -->
+                <div class="flex-1 grid grid-cols-4 grid-rows-2 gap-2.5 min-h-[220px]">
+                    <!-- Pads generated dynamically via JS or hardcoded for layout perfection -->
+                    <button class="pad-btn bg-slate-900 border-2 border-synth-cyan/30 rounded-2xl flex flex-col justify-between p-2.5 relative overflow-hidden group active:border-synth-cyan" data-pad="0">
+                        <span class="text-[10px] font-mono text-slate-400 font-bold self-start">P1</span>
+                        <span class="text-xs font-mono font-extrabold text-synth-cyan text-center my-auto font-mono">DİLİM 1</span>
+                        <span class="text-[9px] font-mono text-slate-500 self-end">TUŞ: 1</span>
+                    </button>
+                    <button class="pad-btn bg-slate-900 border-2 border-synth-cyan/30 rounded-2xl flex flex-col justify-between p-2.5 relative overflow-hidden group active:border-synth-cyan" data-pad="1">
+                        <span class="text-[10px] font-mono text-slate-400 font-bold self-start">P2</span>
+                        <span class="text-xs font-mono font-extrabold text-synth-cyan text-center my-auto">DİLİM 2</span>
+                        <span class="text-[9px] font-mono text-slate-500 self-end">TUŞ: 2</span>
+                    </button>
+                    <button class="pad-btn bg-slate-900 border-2 border-synth-cyan/30 rounded-2xl flex flex-col justify-between p-2.5 relative overflow-hidden group active:border-synth-cyan" data-pad="2">
+                        <span class="text-[10px] font-mono text-slate-400 font-bold self-start">P3</span>
+                        <span class="text-xs font-mono font-extrabold text-synth-cyan text-center my-auto">DİLİM 3</span>
+                        <span class="text-[9px] font-mono text-slate-500 self-end">TUŞ: 3</span>
+                    </button>
+                    <button class="pad-btn bg-slate-900 border-2 border-synth-cyan/30 rounded-2xl flex flex-col justify-between p-2.5 relative overflow-hidden group active:border-synth-cyan" data-pad="3">
+                        <span class="text-[10px] font-mono text-slate-400 font-bold self-start">P4</span>
+                        <span class="text-xs font-mono font-extrabold text-synth-cyan text-center my-auto">DİLİM 4</span>
+                        <span class="text-[9px] font-mono text-slate-500 self-end">TUŞ: 4</span>
+                    </button>
+
+                    <button class="pad-btn bg-slate-900 border-2 border-synth-amber/30 rounded-2xl flex flex-col justify-between p-2.5 relative overflow-hidden group active:border-synth-amber" data-pad="4">
+                        <span class="text-[10px] font-mono text-slate-400 font-bold self-start">P5</span>
+                        <span class="text-xs font-mono font-extrabold text-synth-amber text-center my-auto">DİLİM 5</span>
+                        <span class="text-[9px] font-mono text-slate-500 self-end">TUŞ: Q</span>
+                    </button>
+                    <button class="pad-btn bg-slate-900 border-2 border-synth-amber/30 rounded-2xl flex flex-col justify-between p-2.5 relative overflow-hidden group active:border-synth-amber" data-pad="5">
+                        <span class="text-[10px] font-mono text-slate-400 font-bold self-start">P6</span>
+                        <span class="text-xs font-mono font-extrabold text-synth-amber text-center my-auto">DİLİM 6</span>
+                        <span class="text-[9px] font-mono text-slate-500 self-end">TUŞ: W</span>
+                    </button>
+                    <button class="pad-btn bg-slate-900 border-2 border-synth-amber/30 rounded-2xl flex flex-col justify-between p-2.5 relative overflow-hidden group active:border-synth-amber" data-pad="6">
+                        <span class="text-[10px] font-mono text-slate-400 font-bold self-start">P7</span>
+                        <span class="text-xs font-mono font-extrabold text-synth-amber text-center my-auto">DİLİM 7</span>
+                        <span class="text-[9px] font-mono text-slate-500 self-end">TUŞ: E</span>
+                    </button>
+                    <button class="pad-btn bg-slate-900 border-2 border-synth-amber/30 rounded-2xl flex flex-col justify-between p-2.5 relative overflow-hidden group active:border-synth-amber" data-pad="7">
+                        <span class="text-[10px] font-mono text-slate-400 font-bold self-start">P8</span>
+                        <span class="text-xs font-mono font-extrabold text-synth-amber text-center my-auto">DİLİM 8</span>
+                        <span class="text-[9px] font-mono text-slate-500 self-end">TUŞ: R</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- TAB 2: RİTİM (SEQUENCER) -->
+            <section id="tab-seq" class="hidden flex-1 flex-col p-3 gap-3 overflow-y-auto">
+                <!-- Sequencer Header Tools -->
+                <div class="flex items-center justify-between bg-slate-900 p-2 rounded-xl border border-slate-800">
+                    <div class="flex items-center gap-1.5">
+                        <!-- Step Page Switcher (Adım 1-8 / Adım 9-16) for touch sizing -->
+                        <div class="flex bg-slate-950 p-1 rounded-lg border border-slate-800 text-[10px] font-mono">
+                            <button id="btn-seq-page-1" class="px-2.5 py-1 rounded bg-synth-cyan text-slate-950 font-bold">1-8</button>
+                            <button id="btn-seq-page-2" class="px-2.5 py-1 rounded text-slate-400">9-16</button>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <!-- Swing Slider -->
+                        <div class="flex items-center gap-1 text-[10px] font-mono text-slate-400">
+                            <span>SWING:</span>
+                            <input type="range" id="slider-swing" aria-label="Swing" min="0" max="50" value="0" class="w-14 accent-synth-amber h-1 bg-slate-800">
+                        </div>
+
+                        <!-- Clear & Random Pattern -->
+                        <button id="btn-seq-clear" title="Temizle" class="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white text-xs"><i class="fa-solid fa-trash-can"></i></button>
+                        <button id="btn-seq-random" title="Rastgele Ritim" class="p-1.5 rounded-lg bg-slate-800 text-synth-cyan text-xs"><i class="fa-solid fa-dice"></i></button>
+                    </div>
+                </div>
+
+                <!-- 16-Step Sequencer Track Grid -->
+                <div class="flex-1 bg-slate-900 border border-slate-800 rounded-2xl p-2.5 flex flex-col gap-2.5 overflow-x-auto justify-between shadow-inner">
+                    <!-- Drum & Sample Tracks -->
+                    
+                    <!-- Kick Track -->
+                    <div class="flex flex-col gap-1" data-track="kick">
+                        <div class="flex items-center justify-between text-[10px] font-mono text-slate-300">
+                            <span class="flex items-center gap-1 font-bold text-synth-rose"><i class="fa-solid fa-drum"></i> KICK</span>
+                            <span class="text-slate-500">BASS DRUM</span>
+                        </div>
+                        <div class="grid grid-cols-8 gap-1.5 seq-steps-container" data-track-id="0">
+                            <!-- 8 buttons rendered via JS for active page -->
+                        </div>
+                    </div>
+
+                    <!-- Snare Track -->
+                    <div class="flex flex-col gap-1" data-track="snare">
+                        <div class="flex items-center justify-between text-[10px] font-mono text-slate-300">
+                            <span class="flex items-center gap-1 font-bold text-synth-amber"><i class="fa-solid fa-drum-steelpan"></i> SNARE</span>
+                            <span class="text-slate-500">TRAMPET</span>
+                        </div>
+                        <div class="grid grid-cols-8 gap-1.5 seq-steps-container" data-track-id="1"></div>
+                    </div>
+
+                    <!-- Hi-Hat Track -->
+                    <div class="flex flex-col gap-1" data-track="hihat">
+                        <div class="flex items-center justify-between text-[10px] font-mono text-slate-300">
+                            <span class="flex items-center gap-1 font-bold text-synth-cyan"><i class="fa-solid fa-icons"></i> HI-HAT</span>
+                            <span class="text-slate-500">ZİL</span>
+                        </div>
+                        <div class="grid grid-cols-8 gap-1.5 seq-steps-container" data-track-id="2"></div>
+                    </div>
+
+                    <!-- Percussion Track -->
+                    <div class="flex flex-col gap-1" data-track="perc">
+                        <div class="flex items-center justify-between text-[10px] font-mono text-slate-300">
+                            <span class="flex items-center gap-1 font-bold text-synth-green"><i class="fa-solid fa-ring"></i> PERKÜSYON</span>
+                            <span class="text-slate-500">ZİL / DARBUKA</span>
+                        </div>
+                        <div class="grid grid-cols-8 gap-1.5 seq-steps-container" data-track-id="3"></div>
+                    </div>
+
+                    <!-- Sample Trigger Track -->
+                    <div class="flex flex-col gap-1" data-track="sample">
+                        <div class="flex items-center justify-between text-[10px] font-mono text-slate-300">
+                            <span class="flex items-center gap-1 font-bold text-synth-purple"><i class="fa-solid fa-music"></i> SAMPLE (DİLİM)</span>
+                            <select id="seq-sample-select" class="bg-slate-950 text-synth-purple text-[9px] font-mono rounded px-1 border border-slate-800">
+                                <option value="0">P1</option>
+                                <option value="1">P2</option>
+                                <option value="2">P3</option>
+                                <option value="3">P4</option>
+                                <option value="4">P5</option>
+                                <option value="5">P6</option>
+                                <option value="6">P7</option>
+                                <option value="7">P8</option>
+                            </select>
+                        </div>
+                        <div class="grid grid-cols-8 gap-1.5 seq-steps-container" data-track-id="4"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: EFEKT & MİKS (FX & MIXER) -->
+            <section id="tab-fx" class="hidden flex-1 flex-col p-3 gap-3 overflow-y-auto">
+                <!-- X/Y Touch Pad Filter -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-2.5 flex flex-col gap-1 shadow-inner relative">
+                    <div class="flex items-center justify-between text-[10px] font-mono text-slate-400">
+                        <span class="text-synth-cyan font-bold"><i class="fa-solid fa-sliders"></i> X/Y FİLTRE PADI</span>
+                        <span>X: FREKANS | Y: REZONANS</span>
+                    </div>
+
+                    <div id="xy-pad" class="relative h-32 w-full bg-slate-950 rounded-xl overflow-hidden border border-slate-800 cursor-crosshair touch-none flex items-center justify-center lcd-bg">
+                        <!-- Grid lines -->
+                        <div class="absolute inset-0 border-r border-b border-slate-800/40 pointer-events-none"></div>
+                        <!-- Cursor Puck -->
+                        <div id="xy-puck" class="absolute w-6 h-6 rounded-full bg-synth-cyan/30 border-2 border-synth-cyan shadow-[0_0_10px_#00f0ff] -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-all duration-75"></div>
+                        <span class="text-[10px] font-mono text-slate-600 pointer-events-none">PARMAĞINIZLA SÜRÜKLEYİN</span>
+                    </div>
+                </div>
+
+                <!-- Live FX Rack Controls -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex flex-col gap-2.5">
+                    <span class="text-[10px] font-mono text-slate-400 font-bold"><i class="fa-solid fa-compact-disc text-synth-amber"></i> SES EFEKTLERİ</span>
+
+                    <div class="grid grid-cols-3 gap-2">
+                        <!-- Delay Echo -->
+                        <div class="flex flex-col gap-1 bg-slate-950 p-2 rounded-xl border border-slate-800">
+                            <span class="text-[9px] font-mono text-slate-400">EKO / DELAY</span>
+                            <input type="range" id="slider-delay" min="0" max="0.8" step="0.05" value="0.2" class="accent-synth-amber h-1.5 bg-slate-800 rounded">
+                        </div>
+
+                        <!-- Reverb Space -->
+                        <div class="flex flex-col gap-1 bg-slate-950 p-2 rounded-xl border border-slate-800">
+                            <span class="text-[9px] font-mono text-slate-400">YANKI / REVERB</span>
+                            <input type="range" id="slider-reverb" min="0" max="0.9" step="0.05" value="0.3" class="accent-synth-cyan h-1.5 bg-slate-800 rounded">
+                        </div>
+
+                        <!-- Lo-Fi Bitcrush -->
+                        <div class="flex flex-col gap-1 bg-slate-950 p-2 rounded-xl border border-slate-800">
+                            <span class="text-[9px] font-mono text-slate-400">LO-FI / BOZULMA</span>
+                            <input type="range" id="slider-lofi" min="0" max="1" step="0.05" value="0.1" class="accent-synth-rose h-1.5 bg-slate-800 rounded">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mini Channel Mixer -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex flex-col gap-2.5">
+                    <span class="text-[10px] font-mono text-slate-400 font-bold"><i class="fa-solid fa-sliders text-synth-green"></i> KANAL MİKSERİ</span>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <!-- Drum Bus -->
+                        <div class="flex flex-col gap-1.5 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                            <div class="flex items-center justify-between text-[10px] font-mono">
+                                <span class="text-slate-300 font-bold">RİTİMLER</span>
+                                <button id="btn-mute-drums" class="text-slate-500 hover:text-synth-rose text-xs"><i class="fa-solid fa-volume-xmark"></i></button>
+                            </div>
+                            <input type="range" id="slider-vol-drums" min="0" max="1" step="0.05" value="0.9" class="accent-synth-green h-1.5 bg-slate-800 rounded">
+                        </div>
+
+                        <!-- Sampler Bus -->
+                        <div class="flex flex-col gap-1.5 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                            <div class="flex items-center justify-between text-[10px] font-mono">
+                                <span class="text-slate-300 font-bold">SAMPLE’LAR</span>
+                                <button id="btn-mute-sample" class="text-slate-500 hover:text-synth-rose text-xs"><i class="fa-solid fa-volume-xmark"></i></button>
+                            </div>
+                            <input type="range" id="slider-vol-sample" min="0" max="1" step="0.05" value="0.9" class="accent-synth-amber h-1.5 bg-slate-800 rounded">
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- BOTTOM TAB NAVIGATION BAR -->
+        <nav class="bg-slate-900 border-t border-slate-800 grid grid-cols-3 p-1.5 shrink-0">
+            <button id="nav-btn-pads" class="flex flex-col items-center justify-center py-2 text-synth-cyan font-mono text-[10px] font-bold gap-1 rounded-xl bg-slate-800/80 transition">
+                <i class="fa-solid fa-grip text-base"></i>
+                <span>1. PADS</span>
+            </button>
+            <button id="nav-btn-seq" class="flex flex-col items-center justify-center py-2 text-slate-500 font-mono text-[10px] font-bold gap-1 rounded-xl transition">
+                <i class="fa-solid fa-align-left text-base"></i>
+                <span>2. RİTİM</span>
+            </button>
+            <button id="nav-btn-fx" class="flex flex-col items-center justify-center py-2 text-slate-500 font-mono text-[10px] font-bold gap-1 rounded-xl transition">
+                <i class="fa-solid fa-[#fa-sliders] fa-sliders text-base"></i>
+                <span>3. EFEKT & MİKS</span>
+            </button>
+        </nav>
+
+    </div>
+
+    <!-- AUDIO ENGINE & APPLICATION LOGIC -->
+    <script>
+        // --- WEB AUDIO API SYSTEM ARCHITECTURE ---
+        let audioCtx = null;
+        let masterGainNode = null;
+        let drumsGainNode = null;
+        let sampleGainNode = null;
+        let filterNode = null;
+        let delayNode = null;
+        let delayFeedbackNode = null;
+        let waveshaperNode = null;
+        let recorderDestination = null;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+
+        // Application State
+        let isAudioUnlocked = false;
+        let activeKitBuffer = null;
+        let activeKitType = "anadolu";
+        let isPlaying = false;
+        let currentBpm = 120;
+        let currentStep = 0;
+        let activeStepPage = 0; // 0 for steps 1-8, 1 for steps 9-16
+        let timerId = null;
+        let swingAmount = 0;
+        let activePadIndex = 0;
+
+        // Pad Parameters State
+        const padSettings = Array.from({ length: 8 }, () => ({
+            pitch: 0,
+            reverse: false
+        }));
+
+        // 16-step Sequencer Grid Data (5 tracks: Kick, Snare, HiHat, Perc, Sample)
+        // Default groovy pattern
+        const seqGrid = [
+            // Kick
+            [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+            // Snare
+            [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
+            // Hi-Hat
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            // Perc
+            [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0],
+            // Sample Pad Trigger
+            [1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0]
+        ];
+
+        // --- AUDIO ENGINE INITIALIZATION ---
+        function initAudioEngine() {
+            if (audioCtx) return;
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContextClass();
+
+            // Master Gain & Limiter
+            masterGainNode = audioCtx.createGain();
+            masterGainNode.gain.value = 0.8;
+
+            // Channel Gains
+            drumsGainNode = audioCtx.createGain();
+            drumsGainNode.gain.value = 0.9;
+
+            sampleGainNode = audioCtx.createGain();
+            sampleGainNode.gain.value = 0.9;
+
+            // FX Rack Nodes
+            filterNode = audioCtx.createBiquadFilter();
+            filterNode.type = 'lowpass';
+            filterNode.frequency.value = 8000;
+            filterNode.Q.value = 2;
+
+            delayNode = audioCtx.createDelay();
+            delayNode.delayTime.value = 0.2;
+
+            delayFeedbackNode = audioCtx.createGain();
+            delayFeedbackNode.gain.value = 0.3;
+
+            waveshaperNode = audioCtx.createWaveShaper();
+            waveshaperNode.curve = makeDistortionCurve(10);
+
+            // Audio Routing Graph
+            // Drums & Sample -> Channel Gains -> Filter -> Waveshaper -> Master Gain -> Destination
+            drumsGainNode.connect(filterNode);
+            sampleGainNode.connect(filterNode);
+
+            // Filter -> Delay Loop -> Master
+            filterNode.connect(delayNode);
+            delayNode.connect(delayFeedbackNode);
+            delayFeedbackNode.connect(delayNode);
+            delayNode.connect(masterGainNode);
+
+            filterNode.connect(waveshaperNode);
+            waveshaperNode.connect(masterGainNode);
+
+            masterGainNode.connect(audioCtx.destination);
+
+            // Setup MediaStream Destination for WAV recording export
+            recorderDestination = audioCtx.createMediaStreamDestination();
+            masterGainNode.connect(recorderDestination);
+
+            // Generate initial procedural sound kit
+            generateProceduralKit(activeKitType);
+        }
+
+        // Distortion Curve Generator for Lo-Fi FX
+        function makeDistortionCurve(amount) {
+            const k = typeof amount === 'number' ? amount : 50;
+            const n_samples = 44100;
+            const curve = new Float32Array(n_samples);
+            const deg = Math.PI / 180;
+            for (let i = 0; i < n_samples; ++i) {
+                const x = (i * 2) / n_samples - 1;
+                curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
+            }
+            return curve;
+        }
+
+        // --- PROCEDURAL SAMPLE GENERATOR ENGINE (Zero external dependencies!) ---
+        function generateProceduralKit(kitType) {
+            if (!audioCtx) return;
+
+            const duration = 3.2; // 3.2 seconds buffer sliced into 8 x 0.4s parts
+            const sampleRate = audioCtx.sampleRate;
+            const buffer = audioCtx.createBuffer(2, sampleRate * duration, sampleRate);
+            const left = buffer.getChannelData(0);
+            const right = buffer.getChannelData(1);
+
+            // Scales / Frequencies for 8 pads
+            let freqs = [];
+            if (kitType === "anadolu") {
+                // Phrygian/Hicaz microtonal inspired scale
+                freqs = [220, 233.08, 277.18, 293.66, 329.63, 349.23, 415.30, 440];
+            } else if (kitType === "lofi") {
+                // Lo-Fi Jazz 7th chords / tones
+                freqs = [196, 246.94, 293.66, 349.23, 392, 440, 493.88, 587.33];
+            } else if (kitType === "trap808") {
+                // Deep 808 sub tones & sharp plucks
+                freqs = [55, 65.41, 73.42, 82.41, 110, 130.81, 146.83, 164.81];
+            } else {
+                // 80s Synthwave synth scale
+                freqs = [130.81, 146.83, 164.81, 174.61, 196.00, 220.00, 246.94, 261.63];
+            }
+
+            const sliceLen = (sampleRate * duration) / 8;
+
+            for (let slice = 0; slice < 8; slice++) {
+                const baseFreq = freqs[slice];
+                const sliceStart = slice * sliceLen;
+
+                for (let i = 0; i < sliceLen; i++) {
+                    const idx = Math.floor(sliceStart + i);
+                    const t = i / sampleRate;
+
+                    let sample = 0;
+                    if (kitType === "anadolu") {
+                        // Saz/Synth saw + triangle blend with envelope decay
+                        const env = Math.exp(-t * 4);
+                        sample = (Math.sin(2 * Math.PI * baseFreq * t) * 0.5 + 
+                                  (Math.abs((t * baseFreq) % 1 - 0.5) * 2 - 1) * 0.5) * env;
+                    } else if (kitType === "lofi") {
+                        // Warm sine chords + subtle dusty vinyl noise
+                        const env = Math.exp(-t * 2.5);
+                        const noise = (Math.random() * 2 - 1) * 0.03;
+                        sample = (Math.sin(2 * Math.PI * baseFreq * t) + Math.sin(2 * Math.PI * baseFreq * 1.25 * t) * 0.5) * 0.4 * env + noise;
+                    } else if (kitType === "trap808") {
+                        // Fast pitch drop sub bass + pluck
+                        const pitchEnv = Math.exp(-t * 20);
+                        const f = baseFreq + pitchEnv * 120;
+                        const env = Math.exp(-t * 3);
+                        sample = Math.sin(2 * Math.PI * f * t) * env;
+                    } else {
+                        // 80s Sawtooth synth brass
+                        const env = Math.exp(-t * 5);
+                        sample = ((t * baseFreq) % 1 - 0.5) * 0.8 * env;
+                    }
+
+                    left[idx] = sample * 0.7;
+                    right[idx] = sample * 0.7;
+                }
+            }
+
+            activeKitBuffer = buffer;
+            drawWaveform();
+        }
+
+        // --- PLAY SAMPLE PAD SLICE ---
+        function playPad(sliceIndex) {
+            if (!audioCtx || !activeKitBuffer) return;
+
+            // Trigger visual glow & touch vibration
+            if (navigator.vibrate) navigator.vibrate(10);
+            highlightPadUI(sliceIndex);
+
+            const source = audioCtx.createBufferSource();
+            const sliceDuration = activeKitBuffer.duration / 8;
+            const startTime = sliceIndex * sliceDuration;
+
+            let playBuffer = activeKitBuffer;
+            // Handle Reverse Pad feature
+            if (padSettings[sliceIndex].reverse) {
+                playBuffer = createReversedSliceBuffer(sliceIndex, sliceDuration);
+                source.buffer = playBuffer;
+                source.connect(sampleGainNode);
+                source.start(0);
+                return;
+            }
+
+            source.buffer = playBuffer;
+            
+            // Pitch Shift semitones
+            const pitchSemitones = padSettings[sliceIndex].pitch;
+            source.playbackRate.value = Math.pow(2, pitchSemitones / 12);
+
+            source.connect(sampleGainNode);
+            source.start(0, startTime, sliceDuration);
+
+            // Animate canvas playhead marker
+            drawWaveform(sliceIndex);
+        }
+
+        // Reverse Buffer Helper
+        function createReversedSliceBuffer(sliceIndex, sliceDuration) {
+            const sampleRate = audioCtx.sampleRate;
+            const frameCount = Math.floor(sliceDuration * sampleRate);
+            const revBuffer = audioCtx.createBuffer(2, frameCount, sampleRate);
+
+            const startFrame = Math.floor(sliceIndex * sliceDuration * sampleRate);
+
+            for (let channel = 0; channel < 2; channel++) {
+                const srcData = activeKitBuffer.getChannelData(channel);
+                const destData = revBuffer.getChannelData(channel);
+                for (let i = 0; i < frameCount; i++) {
+                    destData[i] = srcData[startFrame + frameCount - 1 - i];
+                }
+            }
+            return revBuffer;
+        }
+
+        // --- SYNTHESIZED DRUM ENGINE (FOR SEQUENCER) ---
+        function triggerDrumSound(type, time) {
+            if (!audioCtx) return;
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            if (type === 'kick') {
+                osc.frequency.setValueAtTime(140, time);
+                osc.frequency.exponentialRampToValueAtTime(35, time + 0.12);
+                gain.gain.setValueAtTime(1.0, time);
+                gain.gain.exponentialRampToValueAtTime(0.01, time + 0.15);
+
+                osc.connect(gain);
+                gain.connect(drumsGainNode);
+                osc.start(time);
+                osc.stop(time + 0.15);
+
+            } else if (type === 'snare') {
+                // Noise + Tone combo
+                const noiseBuffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.1, audioCtx.sampleRate);
+                const output = noiseBuffer.getChannelData(0);
+                for (let i = 0; i < noiseBuffer.length; i++) {
+                    output[i] = Math.random() * 2 - 1;
+                }
+                const noise = audioCtx.createBufferSource();
+                noise.buffer = noiseBuffer;
+
+                const noiseFilter = audioCtx.createBiquadFilter();
+                noiseFilter.type = 'highpass';
+                noiseFilter.frequency.value = 1000;
+                noise.connect(noiseFilter);
+
+                const noiseGain = audioCtx.createGain();
+                noiseGain.gain.setValueAtTime(0.8, time);
+                noiseGain.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
+
+                noiseFilter.connect(noiseGain);
+                noiseGain.connect(drumsGainNode);
+                noise.start(time);
+
+            } else if (type === 'hihat') {
+                // High frequency metallic burst
+                const noiseBuffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.05, audioCtx.sampleRate);
+                const output = noiseBuffer.getChannelData(0);
+                for (let i = 0; i < noiseBuffer.length; i++) {
+                    output[i] = Math.random() * 2 - 1;
+                }
+                const noise = audioCtx.createBufferSource();
+                noise.buffer = noiseBuffer;
+
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'highpass';
+                filter.frequency.value = 7000;
+                noise.connect(filter);
+
+                const hatGain = audioCtx.createGain();
+                hatGain.gain.setValueAtTime(0.6, time);
+                hatGain.gain.exponentialRampToValueAtTime(0.01, time + 0.04);
+
+                filter.connect(hatGain);
+                hatGain.connect(drumsGainNode);
+                noise.start(time);
+
+            } else if (type === 'perc') {
+                // Woodblock / Darbuka slap tone
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(600, time);
+                osc.frequency.exponentialRampToValueAtTime(200, time + 0.05);
+
+                gain.gain.setValueAtTime(0.7, time);
+                gain.gain.exponentialRampToValueAtTime(0.01, time + 0.06);
+
+                osc.connect(gain);
+                gain.connect(drumsGainNode);
+                osc.start(time);
+                osc.stop(time + 0.06);
+            }
+        }
+
+        // --- STEP SEQUENCER SCHEDULER & LOOP ---
+        function runSequencer() {
+            if (!isPlaying) return;
+
+            const secondsPerBeat = 60.0 / currentBpm;
+            const secondsPerStep = secondsPerBeat / 4; // 16th notes
+
+            // Apply Swing offset on even 16th steps
+            let stepDelay = 0;
+            if (currentStep % 2 === 1) {
+                stepDelay = (swingAmount / 100) * secondsPerStep;
+            }
+
+            const now = audioCtx.currentTime + stepDelay;
+
+            // Trigger active tracks for currentStep
+            if (seqGrid[0][currentStep]) triggerDrumSound('kick', now);
+            if (seqGrid[1][currentStep]) triggerDrumSound('snare', now);
+            if (seqGrid[2][currentStep]) triggerDrumSound('hihat', now);
+            if (seqGrid[3][currentStep]) triggerDrumSound('perc', now);
+            if (seqGrid[4][currentStep]) {
+                const samplePadIndex = parseInt(document.getElementById('seq-sample-select').value) || 0;
+                setTimeout(() => playPad(samplePadIndex), stepDelay * 1000);
+            }
+
+            // Update UI step highlights
+            updateSequencerStepUI(currentStep);
+
+            // Increment step (16 steps)
+            currentStep = (currentStep + 1) % 16;
+
+            timerId = setTimeout(runSequencer, (secondsPerStep + stepDelay) * 1000);
+        }
+
+        // --- WAVEFORM CANVAS DRAWING ENGINE ---
+        function drawWaveform(highlightSlice = -1) {
+            const canvas = document.getElementById('waveform-canvas');
+            if (!canvas || !activeKitBuffer) return;
+
+            const ctx = canvas.getContext('2d');
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+
+            const width = canvas.width;
+            const height = canvas.height;
+            const data = activeKitBuffer.getChannelData(0);
+            const step = Math.ceil(data.length / width);
+            const amp = height / 2;
+
+            ctx.clearRect(0, 0, width, height);
+
+            // Draw Background Slices Lines & Fill
+            const sliceWidth = width / 8;
+            for (let i = 0; i < 8; i++) {
+                const x = i * sliceWidth;
+                
+                // Highlight slice background if playing
+                if (i === highlightSlice) {
+                    ctx.fillStyle = i < 4 ? 'rgba(0, 240, 255, 0.2)' : 'rgba(255, 176, 32, 0.2)';
+                    ctx.fillRect(x, 0, sliceWidth, height);
+                }
+
+                // Slice separator vertical line
+                ctx.strokeStyle = 'rgba(42, 54, 72, 0.8)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+
+                // Slice Label Text
+                ctx.fillStyle = i === highlightSlice ? '#ffffff' : 'rgba(148, 163, 184, 0.6)';
+                ctx.font = '9px JetBrains Mono';
+                ctx.fillText(`P${i + 1}`, x + 4, 12);
+            }
+
+            // Draw Audio Waveform Path
+            ctx.beginPath();
+            ctx.strokeStyle = '#00f0ff';
+            ctx.lineWidth = 1.5;
+
+            for (let i = 0; i < width; i++) {
+                let min = 1.0;
+                let max = -1.0;
+                for (let j = 0; j < step; j++) {
+                    const datum = data[(i * step) + j];
+                    if (datum < min) min = datum;
+                    if (datum > max) max = datum;
+                }
+                ctx.moveTo(i, (1 + min) * amp);
+                ctx.lineTo(i, (1 + max) * amp);
+            }
+            ctx.stroke();
+        }
+
+        // --- MICROFON SAMPLING ENGINE ---
+        async function recordMicrophoneSample() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert("Mikrofon erişimi bu tarayıcıda desteklenmiyor.");
+                return;
+            }
+
+            const statusEl = document.getElementById('mic-status');
+            statusEl.classList.remove('hidden');
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const mediaRec = new MediaRecorder(stream);
+                const micChunks = [];
+
+                mediaRec.ondataavailable = (e) => micChunks.push(e.data);
+                mediaRec.onstop = async () => {
+                    const blob = new Blob(micChunks, { type: 'audio/ogg; codecs=opus' });
+                    const arrayBuffer = await blob.arrayBuffer();
+                    audioCtx.decodeAudioData(arrayBuffer, (decodedBuffer) => {
+                        activeKitBuffer = decodedBuffer;
+                        document.getElementById('sample-info').textContent = "MİKROFON KAYDI (8 DİLİM)";
+                        drawWaveform();
+                        statusEl.classList.add('hidden');
+                    });
+                };
+
+                mediaRec.start();
+                // Record for exactly 3 seconds to slice evenly
+                setTimeout(() => {
+                    mediaRec.stop();
+                    stream.getTracks().forEach(track => track.stop());
+                }, 3000);
+
+            } catch (err) {
+                alert("Mikrofon hatası: " + err.message);
+                statusEl.classList.add('hidden');
+            }
+        }
+
+        // --- LOCAL FILE UPLOAD SAMPLING ---
+        function loadAudioFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                audioCtx.decodeAudioData(e.target.result, (decodedBuffer) => {
+                    activeKitBuffer = decodedBuffer;
+                    document.getElementById('sample-info').textContent = `${file.name.substring(0, 15)}... (8 DİLİM)`;
+                    drawWaveform();
+                });
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // --- LIVE PERFORMANCE WAV RECORDING & DOWNLOAD ---
+        function toggleWavRecording() {
+            const dot = document.getElementById('rec-dot');
+            const text = document.getElementById('rec-text');
+
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                dot.classList.remove('bg-synth-rose', 'animate-ping');
+                dot.classList.add('bg-slate-500');
+                text.textContent = 'KAYIT';
+            } else {
+                recordedChunks = [];
+                const stream = recorderDestination.stream;
+                mediaRecorder = new MediaRecorder(stream);
+
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) recordedChunks.push(e.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: 'audio/wav' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `ritim-atolyesi-performans-${Date.now()}.wav`;
+                    a.click();
+                };
+
+                mediaRecorder.start();
+                dot.classList.remove('bg-slate-500');
+                dot.classList.add('bg-synth-rose', 'animate-ping');
+                text.textContent = 'KAYDEDİLİYOR';
+            }
+        }
+
+        // --- UI INTERACTION & DOM BINDINGS ---
+        function setupUI() {
+            // Audio Unlock Overlay
+            document.getElementById('btn-start-audio').addEventListener('click', () => {
+                initAudioEngine();
+                audioCtx.resume().then(() => {
+                    isAudioUnlocked = true;
+                    document.getElementById('start-overlay').classList.add('hidden');
+                });
+            });
+
+            // Tab Navigation Switcher
+            const tabPads = document.getElementById('tab-pads');
+            const tabSeq = document.getElementById('tab-seq');
+            const tabFx = document.getElementById('tab-fx');
+
+            const btnNavPads = document.getElementById('nav-btn-pads');
+            const btnNavSeq = document.getElementById('nav-btn-seq');
+            const btnNavFx = document.getElementById('nav-btn-fx');
+
+            function switchTab(activeTab, activeBtn) {
+                [tabPads, tabSeq, tabFx].forEach(t => t.classList.add('hidden'));
+                [btnNavPads, btnNavSeq, btnNavFx].forEach(b => {
+                    b.classList.remove('text-synth-cyan', 'bg-slate-800/80');
+                    b.classList.add('text-slate-500');
+                });
+
+                activeTab.classList.remove('hidden');
+                activeTab.classList.add('flex');
+                activeBtn.classList.remove('text-slate-500');
+                activeBtn.classList.add('text-synth-cyan', 'bg-slate-800/80');
+
+                if (activeTab === tabPads) drawWaveform();
+            }
+
+            btnNavPads.addEventListener('click', () => switchTab(tabPads, btnNavPads));
+            btnNavSeq.addEventListener('click', () => switchTab(tabSeq, btnNavSeq));
+            btnNavFx.addEventListener('click', () => switchTab(tabFx, btnNavFx));
+
+            // Transport Controls (Play, BPM, Volume)
+            const btnPlay = document.getElementById('btn-play');
+            const playIcon = document.getElementById('play-icon');
+
+            btnPlay.addEventListener('click', () => {
+                if (!audioCtx) initAudioEngine();
+                isPlaying = !isPlaying;
+                if (isPlaying) {
+                    playIcon.className = "fa-solid fa-pause text-sm";
+                    btnPlay.classList.replace('bg-synth-cyan', 'bg-synth-amber');
+                    currentStep = 0;
+                    runSequencer();
+                } else {
+                    playIcon.className = "fa-solid fa-play text-sm";
+                    btnPlay.classList.replace('bg-synth-amber', 'bg-synth-cyan');
+                    clearTimeout(timerId);
+                }
+            });
+
+            // BPM controls
+            document.getElementById('btn-bpm-minus').addEventListener('click', () => {
+                currentBpm = Math.max(60, currentBpm - 5);
+                document.getElementById('bpm-val').textContent = currentBpm;
+            });
+            document.getElementById('btn-bpm-plus').addEventListener('click', () => {
+                currentBpm = Math.min(200, currentBpm + 5);
+                document.getElementById('bpm-val').textContent = currentBpm;
+            });
+
+            // Master Volume
+            document.getElementById('slider-master-vol').addEventListener('input', (e) => {
+                if (masterGainNode) masterGainNode.gain.value = parseFloat(e.target.value);
+            });
+
+            // Presets
+            document.getElementById('preset-select').addEventListener('change', (e) => {
+                activeKitType = e.target.value;
+                generateProceduralKit(activeKitType);
+                const kitNames = {
+                    anadolu: "ANADOLU ELEKTRO (8 DİLİM)",
+                    lofi: "LO-Fİ GECE (8 DİLİM)",
+                    trap808: "808 TRAP (8 DİLİM)",
+                    synth80s: "80S RETRO SYNTH (8 DİLİM)"
+                };
+                document.getElementById('sample-info').textContent = kitNames[activeKitType];
+            });
+
+            // Mic & File input
+            document.getElementById('btn-mic-record').addEventListener('click', recordMicrophoneSample);
+            document.getElementById('file-input').addEventListener('change', (e) => {
+                if (e.target.files.length > 0) loadAudioFile(e.target.files[0]);
+            });
+
+            // WAV Performance Recording
+            document.getElementById('btn-rec-wav').addEventListener('click', toggleWavRecording);
+
+            // Sampler Pads Pointer/Touch events
+            const padButtons = document.querySelectorAll('.pad-btn');
+            padButtons.forEach(btn => {
+                const padIndex = parseInt(btn.getAttribute('data-pad'));
+                
+                const triggerAction = (e) => {
+                    e.preventDefault();
+                    activePadIndex = padIndex;
+                    playPad(padIndex);
+
+                    // Update pitch UI for active pad
+                    document.getElementById('pitch-val').textContent = padSettings[padIndex].pitch;
+                    document.getElementById('slider-pitch').value = padSettings[padIndex].pitch;
+                    document.getElementById('rev-status').textContent = padSettings[padIndex].reverse ? "AÇIK" : "KAPALI";
+                };
+
+                btn.addEventListener('pointerdown', triggerAction);
+            });
+
+            // Keyboard Shortcuts for Pads (1-4, Q-R)
+            const keyMap = { '1': 0, '2': 1, '3': 2, '4': 3, 'q': 4, 'w': 5, 'e': 6, 'r': 7 };
+            window.addEventListener('keydown', (e) => {
+                const key = e.key.toLowerCase();
+                if (keyMap[key] !== undefined) {
+                    playPad(keyMap[key]);
+                }
+            });
+
+            // Pitch & Reverse Control Binds
+            document.getElementById('slider-pitch').addEventListener('input', (e) => {
+                const val = parseInt(e.target.value);
+                padSettings[activePadIndex].pitch = val;
+                document.getElementById('pitch-val').textContent = val;
+            });
+
+            document.getElementById('btn-reverse').addEventListener('click', () => {
+                padSettings[activePadIndex].reverse = !padSettings[activePadIndex].reverse;
+                document.getElementById('rev-status').textContent = padSettings[activePadIndex].reverse ? "AÇIK" : "KAPALI";
+            });
+
+            // Sequencer Page Switcher (1-8 / 9-16)
+            const btnSeqPage1 = document.getElementById('btn-seq-page-1');
+            const btnSeqPage2 = document.getElementById('btn-seq-page-2');
+
+            btnSeqPage1.addEventListener('click', () => {
+                activeStepPage = 0;
+                btnSeqPage1.className = "px-2.5 py-1 rounded bg-synth-cyan text-slate-950 font-bold";
+                btnSeqPage2.className = "px-2.5 py-1 rounded text-slate-400";
+                renderSequencerGrid();
+            });
+
+            btnSeqPage2.addEventListener('click', () => {
+                activeStepPage = 1;
+                btnSeqPage2.className = "px-2.5 py-1 rounded bg-synth-cyan text-slate-950 font-bold";
+                btnSeqPage1.className = "px-2.5 py-1 rounded text-slate-400";
+                renderSequencerGrid();
+            });
+
+            // Sequencer swing, clear, random
+            document.getElementById('slider-swing').addEventListener('input', (e) => {
+                swingAmount = parseInt(e.target.value);
+            });
+
+            document.getElementById('btn-seq-clear').addEventListener('click', () => {
+                for (let r = 0; r < 5; r++) seqGrid[r].fill(0);
+                renderSequencerGrid();
+            });
+
+            document.getElementById('btn-seq-random').addEventListener('click', () => {
+                for (let r = 0; r < 5; r++) {
+                    for (let c = 0; c < 16; c++) {
+                        seqGrid[r][c] = Math.random() > 0.6 ? 1 : 0;
+                    }
+                }
+                renderSequencerGrid();
+            });
+
+            // X/Y Filter Touch Pad
+            setupXYPad();
+
+            // FX Rack Sliders
+            document.getElementById('slider-delay').addEventListener('input', (e) => {
+                if (delayFeedbackNode) delayFeedbackNode.gain.value = parseFloat(e.target.value);
+            });
+            document.getElementById('slider-reverb').addEventListener('input', (e) => {
+                if (delayNode) delayNode.delayTime.value = 0.1 + parseFloat(e.target.value) * 0.4;
+            });
+            document.getElementById('slider-lofi').addEventListener('input', (e) => {
+                if (waveshaperNode) waveshaperNode.curve = makeDistortionCurve(parseFloat(e.target.value) * 100);
+            });
+
+            // Mixer Channel Sliders
+            document.getElementById('slider-vol-drums').addEventListener('input', (e) => {
+                if (drumsGainNode) drumsGainNode.gain.value = parseFloat(e.target.value);
+            });
+            document.getElementById('slider-vol-sample').addEventListener('input', (e) => {
+                if (sampleGainNode) sampleGainNode.gain.value = parseFloat(e.target.value);
+            });
+
+            renderSequencerGrid();
+        }
+
+        // Highlight active pad on press
+        function highlightPadUI(index) {
+            const btn = document.querySelector(`.pad-btn[data-pad="${index}"]`);
+            if (btn) {
+                btn.classList.add('pad-active');
+                setTimeout(() => btn.classList.remove('pad-active'), 150);
+            }
+        }
+
+        // Render 16-step grid for the active step page (8 buttons shown per track on mobile)
+        function renderSequencerGrid() {
+            const containers = document.querySelectorAll('.seq-steps-container');
+            const offset = activeStepPage * 8;
+
+            containers.forEach(container => {
+                const trackId = parseInt(container.getAttribute('data-track-id'));
+                container.innerHTML = '';
+
+                for (let i = 0; i < 8; i++) {
+                    const stepIdx = offset + i;
+                    const isActive = seqGrid[trackId][stepIdx] === 1;
+
+                    const stepBtn = document.createElement('button');
+                    stepBtn.className = `h-9 rounded-lg border font-mono text-[10px] font-bold transition flex items-center justify-center ${
+                        isActive 
+                            ? 'bg-synth-cyan border-synth-cyan text-slate-950 shadow-[0_0_8px_#00f0ff]' 
+                            : 'bg-slate-950 border-slate-800 text-slate-600'
+                    }`;
+                    stepBtn.textContent = stepIdx + 1;
+
+                    stepBtn.addEventListener('click', () => {
+                        seqGrid[trackId][stepIdx] = seqGrid[trackId][stepIdx] === 1 ? 0 : 1;
+                        renderSequencerGrid();
+                    });
+
+                    container.appendChild(stepBtn);
+                }
+            });
+        }
+
+        // Highlight step playhead in real time
+        function updateSequencerStepUI(step) {
+            const offset = activeStepPage * 8;
+            const relativeStep = step - offset;
+
+            const containers = document.querySelectorAll('.seq-steps-container');
+            containers.forEach(container => {
+                const buttons = container.querySelectorAll('button');
+                buttons.forEach((btn, idx) => {
+                    if (idx === relativeStep) {
+                        btn.classList.add('ring-2', 'ring-synth-amber', 'scale-105');
+                    } else {
+                        btn.classList.remove('ring-2', 'ring-synth-amber', 'scale-105');
+                    }
+                });
+            });
+        }
+
+        // X/Y Touch Pad Controller Setup
+        function setupXYPad() {
+            const xyPad = document.getElementById('xy-pad');
+            const puck = document.getElementById('xy-puck');
+
+            function handleXYMove(e) {
+                const rect = xyPad.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+                let x = Math.max(0, Math.min(rect.width, clientX - rect.left));
+                let y = Math.max(0, Math.min(rect.height, clientY - rect.top));
+
+                puck.style.left = `${x}px`;
+                puck.style.top = `${y}px`;
+
+                // Map X to Low-Pass Cutoff (200Hz to 12000Hz)
+                const freqPercent = x / rect.width;
+                const freq = 200 + Math.pow(freqPercent, 2) * 11800;
+
+                // Map Y to Resonance Q (0.5 to 15)
+                const resPercent = 1 - (y / rect.height);
+                const q = 0.5 + resPercent * 14.5;
+
+                if (filterNode) {
+                    filterNode.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.05);
+                    filterNode.Q.setTargetAtTime(q, audioCtx.currentTime, 0.05);
+                }
+            }
+
+            let isDragging = false;
+            xyPad.addEventListener('pointerdown', (e) => {
+                isDragging = true;
+                handleXYMove(e);
+            });
+            window.addEventListener('pointermove', (e) => {
+                if (isDragging) handleXYMove(e);
+            });
+            window.addEventListener('pointerup', () => isDragging = false);
+        }
+
+        // Boot Application on Window Load
+        window.addEventListener('DOMContentLoaded', () => {
+            setupUI();
+        });
+    </script>
+</body>
+</html>
